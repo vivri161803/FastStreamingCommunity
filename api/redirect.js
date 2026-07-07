@@ -8,13 +8,38 @@ const sessionStr = process.env.TG_SESSION;
 const channelStr = process.env.TG_CHANNEL;
 const fallbackUrl = process.env.DEFAULT_FALLBACK_URL;
 
-// Regex to extract the first URL (excluding trailing parenthesis)
-const urlRegex = /https?:\/\/[^\s)]+/i;
+// Regex to extract the first URL or bare domain (e.g. domain.com, domain.pizza, https://domain.com)
+// It matches typical domain patterns and optional protocol
+const domainOrUrlRegex = /(?:https?:\/\/)?(?:[a-z0-9\-]+\.)+[a-z]{2,10}(?:\/[^\s)]*)?/i;
 
 function extractUrl(text) {
   if (!text) return null;
-  const match = text.match(urlRegex);
-  return match ? match[0] : null;
+
+  let textToSearch = text;
+  
+  // Look for the "Nuovo:" header (case-insensitive)
+  const nuovoIndex = text.toLowerCase().indexOf("nuovo:");
+  if (nuovoIndex !== -1) {
+    // Only search in the text following "Nuovo:"
+    textToSearch = text.substring(nuovoIndex + 6);
+  }
+
+  const match = textToSearch.match(domainOrUrlRegex);
+  if (match) {
+    let matchedStr = match[0];
+    
+    // Clean trailing punctuation that might get captured (like dots, commas, parenthesis)
+    matchedStr = matchedStr.replace(/[\.\,\)\s]+$/, "");
+    
+    // Prepend https:// if it doesn't have schema
+    if (!/^https?:\/\//i.test(matchedStr)) {
+      matchedStr = "https://" + matchedStr;
+    }
+    
+    return matchedStr;
+  }
+  
+  return null;
 }
 
 module.exports = async (req, res) => {
