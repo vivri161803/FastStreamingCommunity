@@ -1,80 +1,12 @@
-const { TelegramClient } = require("telegram");
-const { StringSession } = require("telegram/sessions");
-const { Redis } = require("@upstash/redis");
-const url = require("url");
-
-const apiId = parseInt(process.env.TG_API_ID, 10);
-const apiHash = process.env.TG_API_HASH;
-const channelStr = process.env.TG_CHANNEL;
-const fallbackUrl = process.env.DEFAULT_FALLBACK_URL;
-
-const domainOrUrlRegex = /(?:https?:\/\/)?(?:[a-z0-9\-]+\.)+[a-z]{2,10}(?:\/[^\s)]*)?/i;
-
-function extractUrl(text) {
-  if (!text) return null;
-  const nuovoIndex = text.toLowerCase().indexOf("nuovo:");
-  if (nuovoIndex === -1) return null;
-
-  const textToSearch = text.substring(nuovoIndex + 6);
-  const match = textToSearch.match(domainOrUrlRegex);
-  if (match) {
-    let matchedStr = match[0].replace(/[\.\,\)\s]+$/, "");
-    if (matchedStr.includes("t.me") || matchedStr.includes("telegram.me")) return null;
-    if (!/^https?:\/\//i.test(matchedStr)) matchedStr = "https://" + matchedStr;
-    return matchedStr;
-  }
-  return null;
-}
-
 module.exports = async (req, res) => {
-  if (req.method !== "GET" && req.method !== "HEAD") {
-    res.setHeader("Allow", ["GET", "HEAD"]);
-    return res.status(405).json({ error: "Method Not Allowed" });
-  }
-
-  const parsedUrl = url.parse(req.url, true);
-  const host = req.headers.host || "your-app.vercel.app";
-  const protocol = req.headers["x-forwarded-proto"] || "https";
-  const currentDomain = `${protocol}://${host}`;
-
-  if (parsedUrl.query && parsedUrl.query.mock === "1") {
-    res.writeHead(302, { Location: "https://google.com" });
-    return res.end();
-  }
-
-  let sessionStr = process.env.TG_SESSION;
-  
-  // Attempt to fetch session from Redis if configured
-  if (!sessionStr && process.env.UPSTASH_REDIS_REST_URL && process.env.UPSTASH_REDIS_REST_TOKEN) {
-    try {
-      const redis = new Redis({
-        url: process.env.UPSTASH_REDIS_REST_URL,
-        token: process.env.UPSTASH_REDIS_REST_TOKEN,
-      });
-      sessionStr = await redis.get("TG_SESSION");
-    } catch (e) {
-      console.error("[REDIS ERROR]", e.message);
-    }
-  }
-
-  const envs = {
-    TG_API_ID: !isNaN(apiId),
-    TG_API_HASH: !!apiHash,
-    TG_SESSION: !!sessionStr,
-    TG_CHANNEL: !!channelStr,
-  };
-
-  const isConfigured = envs.TG_API_ID && envs.TG_API_HASH && envs.TG_SESSION && envs.TG_CHANNEL;
-
-  if (!isConfigured) {
-    res.writeHead(200, { "Content-Type": "text/html; charset=utf-8" });
-    res.write(`
+  res.writeHead(200, { "Content-Type": "text/html; charset=utf-8" });
+  res.write(`
 <!DOCTYPE html>
 <html lang="en">
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Setup Telegram Redirect</title>
+  <title>Telegram Redirect Dashboard</title>
   <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;600;800&family=Plus+Jakarta+Sans:wght@300;400;600;700&display=swap" rel="stylesheet">
   <style>
     :root {
@@ -100,6 +32,24 @@ module.exports = async (req, res) => {
     h1 { font-family: 'Outfit', sans-serif; font-weight: 800; font-size: 2rem; margin-bottom: 0.5rem; }
     p { color: var(--text-muted); font-size: 0.95rem; margin-bottom: 2rem; line-height: 1.5; }
     
+    .btn {
+      display: inline-flex; align-items: center; justify-content: center; width: 100%;
+      padding: 1rem; border-radius: 12px; font-weight: 700; font-size: 1rem; cursor: pointer;
+      background: rgba(255,255,255,0.05); color: white; border: 1px solid var(--border); transition: all 0.2s;
+      margin-bottom: 1rem; text-decoration: none;
+    }
+    .btn:hover { background: rgba(255,255,255,0.1); transform: translateY(-2px); }
+    
+    .btn-primary {
+      background: var(--primary); border: none; box-shadow: 0 4px 14px rgba(139, 92, 246, 0.4);
+    }
+    .btn-primary:hover { background: #7c3aed; }
+    
+    .btn-success {
+      background: var(--success); border: none; box-shadow: 0 4px 14px rgba(16, 185, 129, 0.4);
+    }
+    .btn-success:hover { background: #059669; }
+
     .form-group { text-align: left; margin-bottom: 1.25rem; }
     label { display: block; font-size: 0.85rem; font-weight: 600; color: var(--text-muted); margin-bottom: 0.5rem; text-transform: uppercase; letter-spacing: 0.05em; }
     input {
@@ -108,57 +58,66 @@ module.exports = async (req, res) => {
     }
     input:focus { border-color: var(--primary); box-shadow: 0 0 0 2px var(--primary-glow); }
     
-    .btn {
-      display: inline-flex; align-items: center; justify-content: center; width: 100%;
-      padding: 0.85rem 1rem; border-radius: 12px; font-weight: 600; font-size: 1rem; cursor: pointer;
-      background: var(--primary); color: white; border: none; transition: all 0.2s;
-      box-shadow: 0 4px 14px rgba(139, 92, 246, 0.4); margin-top: 1rem;
-    }
-    .btn:hover { background: #7c3aed; transform: translateY(-2px); }
-    .btn:disabled { opacity: 0.5; cursor: not-allowed; transform: none; }
+    .view { display: none; }
+    .view.active { display: block; animation: fadeIn 0.3s ease; }
     
-    #step2 { display: none; }
+    @keyframes fadeIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
+    
+    .session-list { text-align: left; margin-bottom: 1.5rem; max-height: 200px; overflow-y: auto; }
+    .session-item { display: flex; justify-content: space-between; align-items: center; padding: 0.75rem; background: rgba(0,0,0,0.2); border: 1px solid var(--border); border-radius: 8px; margin-bottom: 0.5rem; cursor: pointer; }
+    .session-item:hover { border-color: var(--primary); }
+    .session-item.active-session { border-color: var(--success); background: rgba(16,185,129,0.1); }
+    .delete-btn { background: #f43f5e; color: white; border: none; padding: 0.25rem 0.5rem; border-radius: 6px; cursor: pointer; font-size: 0.75rem; }
+    
     .error { color: #f43f5e; font-size: 0.85rem; margin-top: 1rem; display: none; font-weight: 600; }
-    .success { color: var(--success); font-size: 0.85rem; margin-top: 1rem; display: none; font-weight: 600; }
-    
-    .missing-info { background: rgba(244, 63, 94, 0.1); border: 1px solid rgba(244, 63, 94, 0.2); color: #f43f5e; padding: 1rem; border-radius: 12px; font-size: 0.9rem; text-align: left; margin-bottom: 2rem; }
   </style>
 </head>
 <body>
   <div class="container">
     <div class="card">
-      <h1>Telegram Login</h1>
-      <p>Securely connect your Telegram account to activate the redirect engine.</p>
+      <h1>Redirect Dashboard</h1>
+      <p id="subtitle">Select an action below.</p>
       
-      ${(!envs.TG_API_ID || !envs.TG_API_HASH || !envs.TG_CHANNEL) ? `
-        <div class="missing-info">
-          <strong>Missing Environment Variables:</strong><br><br>
-          ${!envs.TG_API_ID ? '• TG_API_ID<br>' : ''}
-          ${!envs.TG_API_HASH ? '• TG_API_HASH<br>' : ''}
-          ${!envs.TG_CHANNEL ? '• TG_CHANNEL<br>' : ''}
-          <br>Please configure these in Vercel before logging in.
-        </div>
-      ` : `
+      <!-- Main Dashboard View -->
+      <div id="view-main" class="view active">
+        <a href="/api/go" class="btn btn-success" id="goBtn">Redirect to Link</a>
+        <button class="btn" onclick="showView('view-sessions'); loadSessions();">Manage Sessions</button>
+        <button class="btn btn-primary" onclick="showView('view-add')">Add New Key</button>
+      </div>
+
+      <!-- Manage Sessions View -->
+      <div id="view-sessions" class="view">
+        <h3 style="margin-bottom: 1rem;">Available Sessions</h3>
+        <div class="session-list" id="sessionList">Loading...</div>
+        <button class="btn" onclick="showView('view-main')">Back to Dashboard</button>
+      </div>
+
+      <!-- Add New Key (Login) View -->
+      <div id="view-add" class="view">
         <div id="step1">
+          <div class="form-group">
+            <label>Session Name (e.g. My iPhone)</label>
+            <input type="text" id="sessionName" placeholder="My Device" />
+          </div>
           <div class="form-group">
             <label>Phone Number (with +)</label>
             <input type="text" id="phone" placeholder="+1234567890" />
           </div>
-          <button class="btn" id="sendCodeBtn" onclick="sendCode()">Send Code via Telegram</button>
+          <button class="btn btn-primary" id="sendCodeBtn" onclick="sendCode()">Send Code via Telegram</button>
         </div>
 
-        <div id="step2">
+        <div id="step2" style="display:none;">
           <div class="form-group">
             <label>Login Code</label>
             <input type="text" id="code" placeholder="12345" />
           </div>
-          <button class="btn" id="signInBtn" onclick="signIn()">Verify & Complete</button>
+          <button class="btn btn-success" id="signInBtn" onclick="signIn()">Verify & Save Key</button>
         </div>
-      `}
 
+        <div id="errorMsg" class="error"></div>
+        <button class="btn" style="margin-top:1rem;" onclick="resetAddView()">Cancel</button>
+      </div>
 
-      <div id="errorMsg" class="error"></div>
-      <div id="successMsg" class="success"></div>
     </div>
   </div>
 
@@ -166,24 +125,112 @@ module.exports = async (req, res) => {
     let phoneCodeHash = "";
     let tempSession = "";
     let phoneNumber = "";
+    let sessionName = "";
+
+    // Utils
+    function showView(id) {
+      document.querySelectorAll('.view').forEach(v => v.classList.remove('active'));
+      document.getElementById(id).classList.add('active');
+    }
+    function showError(msg) {
+      const el = document.getElementById("errorMsg");
+      el.innerText = msg; el.style.display = "block";
+    }
+    function hideError() { document.getElementById("errorMsg").style.display = "none"; }
+    
+    // Cookies
+    function setCookie(name, value, days) {
+      let expires = "";
+      if (days) {
+        let date = new Date();
+        date.setTime(date.getTime() + (days*24*60*60*1000));
+        expires = "; expires=" + date.toUTCString();
+      }
+      document.cookie = name + "=" + (value || "")  + expires + "; path=/";
+    }
+    function getCookie(name) {
+      let nameEQ = name + "=";
+      let ca = document.cookie.split(';');
+      for(let i=0;i < ca.length;i++) {
+        let c = ca[i];
+        while (c.charAt(0)==' ') c = c.substring(1,c.length);
+        if (c.indexOf(nameEQ) == 0) return c.substring(nameEQ.length,c.length);
+      }
+      return null;
+    }
+
+    // Sessions Management
+    async function loadSessions() {
+      const listEl = document.getElementById("sessionList");
+      listEl.innerHTML = "Loading...";
+      try {
+        const res = await fetch("/api/sessions");
+        const data = await res.json();
+        const activeCookie = getCookie("TG_ACTIVE_SESSION");
+
+        if (!data.sessions || data.sessions.length === 0) {
+          listEl.innerHTML = "<p style='color:var(--text-muted);'>No sessions found.</p>";
+          return;
+        }
+
+        listEl.innerHTML = "";
+        data.sessions.forEach(s => {
+          const div = document.createElement("div");
+          const isActive = activeCookie === s;
+          div.className = "session-item" + (isActive ? " active-session" : "");
+          div.innerHTML = 
+            '<span onclick="setActiveSession(\\'' + s + '\\')" style="flex-grow:1;">' +
+              s + (isActive ? ' (Active)' : '') +
+            '</span>' +
+            '<button class="delete-btn" onclick="deleteSession(\\'' + s + '\\', event)">Delete</button>';
+          listEl.appendChild(div);
+        });
+      } catch(e) {
+        listEl.innerHTML = "Error loading sessions.";
+      }
+    }
+
+    function setActiveSession(name) {
+      setCookie("TG_ACTIVE_SESSION", name, 365);
+      loadSessions();
+    }
+
+    async function deleteSession(name, e) {
+      e.stopPropagation();
+      if (!confirm("Delete session '" + name + "'?")) return;
+      await fetch("/api/sessions?sessionName=" + encodeURIComponent(name), { method: "DELETE" });
+      if (getCookie("TG_ACTIVE_SESSION") === name) setCookie("TG_ACTIVE_SESSION", "", -1);
+      loadSessions();
+    }
+
+    // Auth Flow
+    function resetAddView() {
+      hideError();
+      document.getElementById("step1").style.display = "block";
+      document.getElementById("step2").style.display = "none";
+      document.getElementById("phone").value = "";
+      document.getElementById("sessionName").value = "";
+      document.getElementById("code").value = "";
+      document.getElementById("sendCodeBtn").disabled = false;
+      document.getElementById("sendCodeBtn").innerText = "Send Code via Telegram";
+      showView('view-main');
+    }
 
     async function sendCode() {
+      sessionName = document.getElementById("sessionName").value.trim();
       phoneNumber = document.getElementById("phone").value.trim();
+      if (!sessionName) return showError("Please enter a Session Name.");
       if (!phoneNumber) return showError("Please enter a phone number.");
       
       const btn = document.getElementById("sendCodeBtn");
-      btn.disabled = true;
-      btn.innerText = "Sending...";
-      hideError();
+      btn.disabled = true; btn.innerText = "Sending..."; hideError();
 
       try {
         const res = await fetch("/api/auth", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
+          method: "POST", headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ action: "sendCode", phoneNumber })
         });
         const data = await res.json();
-        
         if (!res.ok) throw new Error(data.error || "Failed to send code");
         
         phoneCodeHash = data.phoneCodeHash;
@@ -193,8 +240,7 @@ module.exports = async (req, res) => {
         document.getElementById("step2").style.display = "block";
       } catch (err) {
         showError(err.message);
-        btn.disabled = false;
-        btn.innerText = "Send Code via Telegram";
+        btn.disabled = false; btn.innerText = "Send Code via Telegram";
       }
     }
 
@@ -203,112 +249,29 @@ module.exports = async (req, res) => {
       if (!code) return showError("Please enter the login code.");
 
       const btn = document.getElementById("signInBtn");
-      btn.disabled = true;
-      btn.innerText = "Verifying...";
-      hideError();
+      btn.disabled = true; btn.innerText = "Verifying..."; hideError();
 
       try {
         const res = await fetch("/api/auth", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ action: "signIn", phoneNumber, phoneCodeHash, phoneCode: code, tempSession })
+          method: "POST", headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ action: "signIn", sessionName, phoneNumber, phoneCodeHash, phoneCode: code, tempSession })
         });
         const data = await res.json();
-
         if (!res.ok) throw new Error(data.error || "Failed to verify code");
 
-        document.getElementById("step2").style.display = "none";
-        document.getElementById("successMsg").innerHTML = "🎉 Login Successful! Session saved to Upstash Redis.<br><br>You can now refresh this page to use the redirector.";
-        document.getElementById("successMsg").style.display = "block";
+        // Set as active session cookie
+        setActiveSession(sessionName);
+        resetAddView();
+        showView('view-sessions');
+        loadSessions();
       } catch (err) {
         showError(err.message);
-        btn.disabled = false;
-        btn.innerText = "Verify & Complete";
+        btn.disabled = false; btn.innerText = "Verify & Save Key";
       }
-    }
-
-    function showError(msg) {
-      const el = document.getElementById("errorMsg");
-      el.innerText = msg;
-      el.style.display = "block";
-    }
-    function hideError() {
-      document.getElementById("errorMsg").style.display = "none";
     }
   </script>
 </body>
 </html>
-    `);
-    return res.end();
-  }
-
-  // Active production flow: Connect to Telegram on-demand
-  const client = new TelegramClient(new StringSession(sessionStr), apiId, apiHash, {
-    connectionRetries: 3,
-  });
-
-  try {
-    await client.connect();
-
-    let target = channelStr;
-    const isNumeric = /^-?\d+$/.test(channelStr);
-    if (isNumeric) target = BigInt(channelStr);
-
-    let channelEntity = null;
-    try {
-      channelEntity = await client.getEntity(target);
-    } catch (e) {
-      const dialogs = await client.getDialogs({});
-      const cleanChannelStr = channelStr.replace("-100", "").replace("-", "");
-      const matchesId = (dialogId) => {
-        const dStr = dialogId.toString();
-        return dStr === channelStr || dStr === `-${channelStr}` || dStr === cleanChannelStr || dStr === `-${cleanChannelStr}` || dStr === `-100${cleanChannelStr}`;
-      };
-      if (isNumeric) {
-        const found = dialogs.find(d => matchesId(d.id));
-        if (found) channelEntity = found.entity;
-      } else {
-        const cleanUsername = channelStr.replace("@", "");
-        const found = dialogs.find(d => d.title === channelStr || (d.entity && d.entity.username === cleanUsername));
-        if (found) channelEntity = found.entity;
-      }
-    }
-
-    if (!channelEntity) throw new Error(`Could not find channel entity for "${channelStr}" in user dialogs.`);
-
-    let foundUrl = null;
-    for await (const message of client.iterMessages(channelEntity, { limit: 10 })) {
-      if (message.text) {
-        const urlMatch = extractUrl(message.text);
-        if (urlMatch) {
-          foundUrl = urlMatch;
-          break;
-        }
-      }
-    }
-
-    await client.disconnect();
-
-    if (foundUrl) {
-      res.writeHead(302, { Location: foundUrl });
-      return res.end();
-    } else if (fallbackUrl) {
-      res.writeHead(302, { Location: fallbackUrl });
-      return res.end();
-    } else {
-      res.writeHead(503, { "Content-Type": "text/html; charset=utf-8" });
-      res.write(`<!DOCTYPE html><html><body><h1>No Link Found</h1></body></html>`);
-      return res.end();
-    }
-
-  } catch (err) {
-    try { await client.disconnect(); } catch (e) {}
-    if (fallbackUrl) {
-      res.writeHead(302, { Location: fallbackUrl });
-      return res.end();
-    } else {
-      res.writeHead(500, { "Content-Type": "text/plain" });
-      return res.end(`Failed: ${err.message}`);
-    }
-  }
+  `);
+  return res.end();
 };

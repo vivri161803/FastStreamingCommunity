@@ -29,6 +29,8 @@ module.exports = async (req, res) => {
     }
 
     if (data.action === "signIn") {
+      if (!data.sessionName) return res.status(400).json({ error: "Missing session name" });
+
       const client = new TelegramClient(new StringSession(data.tempSession), apiId, apiHash, { connectionRetries: 3 });
       await client.connect();
       await client.invoke(new Api.auth.SignIn({
@@ -37,10 +39,11 @@ module.exports = async (req, res) => {
         phoneCode: data.phoneCode
       }));
       const finalSession = client.session.save();
-      // Save session to Upstash Redis
-      await redis.set("TG_SESSION", finalSession);
+      
+      // Save session to Upstash Redis Hash "TG_SESSIONS"
+      await redis.hset("TG_SESSIONS", { [data.sessionName]: finalSession });
       await client.disconnect();
-      return res.status(200).json({ success: true });
+      return res.status(200).json({ success: true, sessionName: data.sessionName });
     }
 
     return res.status(400).json({ error: "Invalid action" });
