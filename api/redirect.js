@@ -15,14 +15,16 @@ const domainOrUrlRegex = /(?:https?:\/\/)?(?:[a-z0-9\-]+\.)+[a-z]{2,10}(?:\/[^\s
 function extractUrl(text) {
   if (!text) return null;
 
-  let textToSearch = text;
-  
   // Look for the "Nuovo:" header (case-insensitive)
   const nuovoIndex = text.toLowerCase().indexOf("nuovo:");
-  if (nuovoIndex !== -1) {
-    // Only search in the text following "Nuovo:"
-    textToSearch = text.substring(nuovoIndex + 6);
+  
+  // If the message does not contain "Nuovo:", skip it so we don't catch random chat URLs
+  if (nuovoIndex === -1) {
+    return null;
   }
+
+  // Only search in the text following "Nuovo:"
+  const textToSearch = text.substring(nuovoIndex + 6);
 
   const match = textToSearch.match(domainOrUrlRegex);
   if (match) {
@@ -31,6 +33,11 @@ function extractUrl(text) {
     // Clean trailing punctuation that might get captured (like dots, commas, parenthesis)
     matchedStr = matchedStr.replace(/[\.\,\)\s]+$/, "");
     
+    // Ignore telegram links just in case
+    if (matchedStr.includes("t.me") || matchedStr.includes("telegram.me")) {
+      return null;
+    }
+
     // Prepend https:// if it doesn't have schema
     if (!/^https?:\/\//i.test(matchedStr)) {
       matchedStr = "https://" + matchedStr;
