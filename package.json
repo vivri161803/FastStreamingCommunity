@@ -1,0 +1,13 @@
+{
+  "name": "telegram-channel-redirect-vercel",
+  "version": "1.0.0",
+  "description": "Redirect HTTP requests to the latest URL from a Telegram channel using a Bot and Vercel",
+  "main": "api/redirect.js",
+  "scripts": {
+    "set-webhook": "node scripts/set-webhook.js"
+  },
+  "dependencies": {
+    "@upstash/redis": "^1.31.5",
+    "dotenv": "^16.4.5"
+  }
+}

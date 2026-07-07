@@ -1,0 +1,15 @@
+[Unit]
+Description=Telegram Channel Redirect Service
+After=network.target
+
+[Service]
+Type=simple
+User=telegram-redirect
+WorkingDirectory=/opt/telegram-redirect-lxc
+ExecStart=/usr/bin/node server.js
+Restart=always
+RestartSec=10
+Environment=NODE_ENV=production
+
+[Install]
+WantedBy=multi-user.target
