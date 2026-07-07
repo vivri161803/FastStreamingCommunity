@@ -76,20 +76,15 @@ module.exports = async (req, res) => {
   <div class="container">
     <div class="card">
       <h1>Redirect Dashboard</h1>
-      <p id="subtitle">Select an action below.</p>
+      <p id="subtitle">Select your active session key below to use the redirector.</p>
       
-      <!-- Main Dashboard View -->
-      <div id="view-main" class="view active">
-        <a href="/api/go" class="btn btn-success" id="goBtn">Redirect to Link</a>
-        <button class="btn" onclick="showView('view-sessions'); loadSessions();">Manage Sessions</button>
-        <button class="btn btn-primary" onclick="showView('view-add')">Add New Key</button>
-      </div>
-
-      <!-- Manage Sessions View -->
-      <div id="view-sessions" class="view">
-        <h3 style="margin-bottom: 1rem;">Available Sessions</h3>
+      <!-- Manage Sessions View (Default now) -->
+      <div id="view-sessions" class="view active">
+        <a href="/api/go" class="btn btn-success" id="goBtn" style="display:none; margin-bottom: 2rem;">🚀 Redirect to Link</a>
+        
+        <h3 style="margin-bottom: 1rem;">Choose a Session Key</h3>
         <div class="session-list" id="sessionList">Loading...</div>
-        <button class="btn" onclick="showView('view-main')">Back to Dashboard</button>
+        <button class="btn btn-primary" onclick="showView('view-add')">+ Add New Key</button>
       </div>
 
       <!-- Add New Key (Login) View -->
@@ -100,8 +95,11 @@ module.exports = async (req, res) => {
             <input type="text" id="sessionName" placeholder="My Device" />
           </div>
           <div class="form-group">
-            <label>Phone Number (with +)</label>
-            <input type="text" id="phone" placeholder="+1234567890" />
+            <label>Phone Number</label>
+            <div style="display:flex; gap: 0.5rem;">
+              <input type="text" id="phonePrefix" placeholder="+39" style="width: 80px;" />
+              <input type="text" id="phoneNum" placeholder="1234567890" style="flex: 1;" />
+            </div>
           </div>
           <button class="btn btn-primary" id="sendCodeBtn" onclick="sendCode()">Send Code via Telegram</button>
         </div>
@@ -110,6 +108,10 @@ module.exports = async (req, res) => {
           <div class="form-group">
             <label>Login Code</label>
             <input type="text" id="code" placeholder="12345" />
+          </div>
+          <div class="form-group">
+            <label>2FA Password (leave empty if none)</label>
+            <input type="password" id="password" placeholder="••••••••" />
           </div>
           <button class="btn btn-success" id="signInBtn" onclick="signIn()">Verify & Save Key</button>
         </div>
@@ -168,8 +170,14 @@ module.exports = async (req, res) => {
         const data = await res.json();
         const activeCookie = getCookie("TG_ACTIVE_SESSION");
 
+        if (activeCookie && data.sessions && data.sessions.includes(activeCookie)) {
+          document.getElementById("goBtn").style.display = "flex";
+        } else {
+          document.getElementById("goBtn").style.display = "none";
+        }
+
         if (!data.sessions || data.sessions.length === 0) {
-          listEl.innerHTML = "<p style='color:var(--text-muted);'>No sessions found.</p>";
+          listEl.innerHTML = "<p style='color:var(--text-muted);'>No sessions found. Add a new key first.</p>";
           return;
         }
 
@@ -208,19 +216,25 @@ module.exports = async (req, res) => {
       hideError();
       document.getElementById("step1").style.display = "block";
       document.getElementById("step2").style.display = "none";
-      document.getElementById("phone").value = "";
+      document.getElementById("phonePrefix").value = "";
+      document.getElementById("phoneNum").value = "";
       document.getElementById("sessionName").value = "";
       document.getElementById("code").value = "";
+      document.getElementById("password").value = "";
       document.getElementById("sendCodeBtn").disabled = false;
       document.getElementById("sendCodeBtn").innerText = "Send Code via Telegram";
-      showView('view-main');
+      showView('view-sessions');
     }
 
     async function sendCode() {
       sessionName = document.getElementById("sessionName").value.trim();
-      phoneNumber = document.getElementById("phone").value.trim();
+      const prefix = document.getElementById("phonePrefix").value.trim();
+      const num = document.getElementById("phoneNum").value.trim();
+      
+      phoneNumber = prefix + num;
+      
       if (!sessionName) return showError("Please enter a Session Name.");
-      if (!phoneNumber) return showError("Please enter a phone number.");
+      if (!prefix || !num) return showError("Please enter a full phone number with prefix.");
       
       const btn = document.getElementById("sendCodeBtn");
       btn.disabled = true; btn.innerText = "Sending..."; hideError();
@@ -246,6 +260,8 @@ module.exports = async (req, res) => {
 
     async function signIn() {
       const code = document.getElementById("code").value.trim();
+      const password = document.getElementById("password").value.trim();
+      
       if (!code) return showError("Please enter the login code.");
 
       const btn = document.getElementById("signInBtn");
@@ -254,10 +270,24 @@ module.exports = async (req, res) => {
       try {
         const res = await fetch("/api/auth", {
           method: "POST", headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ action: "signIn", sessionName, phoneNumber, phoneCodeHash, phoneCode: code, tempSession })
+          body: JSON.stringify({ 
+            action: "signIn", 
+            sessionName, 
+            phoneNumber, 
+            phoneCodeHash, 
+            phoneCode: code, 
+            tempSession,
+            password 
+          })
         });
         const data = await res.json();
-        if (!res.ok) throw new Error(data.error || "Failed to verify code");
+        
+        if (!res.ok) {
+          if (data.passwordRequired) {
+            throw new Error("2FA Password is required to log in to this account.");
+          }
+          throw new Error(data.error || "Failed to verify code");
+        }
 
         // Set as active session cookie
         setActiveSession(sessionName);
@@ -269,6 +299,11 @@ module.exports = async (req, res) => {
         btn.disabled = false; btn.innerText = "Verify & Save Key";
       }
     }
+    
+    // Auto-load on start
+    window.onload = () => {
+      loadSessions();
+    };
   </script>
 </body>
 </html>

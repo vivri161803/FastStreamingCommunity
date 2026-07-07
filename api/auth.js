@@ -33,11 +33,26 @@ module.exports = async (req, res) => {
 
       const client = new TelegramClient(new StringSession(data.tempSession), apiId, apiHash, { connectionRetries: 3 });
       await client.connect();
-      await client.invoke(new Api.auth.SignIn({
-        phoneNumber: data.phoneNumber,
-        phoneCodeHash: data.phoneCodeHash,
-        phoneCode: data.phoneCode
-      }));
+      try {
+        await client.invoke(new Api.auth.SignIn({
+          phoneNumber: data.phoneNumber,
+          phoneCodeHash: data.phoneCodeHash,
+          phoneCode: data.phoneCode
+        }));
+      } catch (err) {
+        if (err.message && err.message.includes("SESSION_PASSWORD_NEEDED")) {
+          if (!data.password) {
+            await client.disconnect();
+            return res.status(400).json({ error: "2FA Password required", passwordRequired: true });
+          }
+          await client.signInWithPassword({ apiId, apiHash }, {
+            password: () => data.password,
+            onError: (e) => { throw e; }
+          });
+        } else {
+          throw err;
+        }
+      }
       const finalSession = client.session.save();
       
       // Save session to Upstash Redis Hash "TG_SESSIONS"
