@@ -399,8 +399,19 @@ module.exports = async (req, res) => {
       console.warn(`[ON-DEMAND] Direct resolve failed, fetching dialogs to populate cache...`);
       const dialogs = await client.getDialogs({});
       
+      const cleanChannelStr = channelStr.replace("-100", "").replace("-", "");
+
+      const matchesId = (dialogId) => {
+        const dStr = dialogId.toString();
+        return dStr === channelStr || 
+               dStr === `-${channelStr}` || 
+               dStr === cleanChannelStr || 
+               dStr === `-${cleanChannelStr}` || 
+               dStr === `-100${cleanChannelStr}`;
+      };
+
       if (isNumeric) {
-        const found = dialogs.find(d => d.id.toString() === channelStr || d.id === target);
+        const found = dialogs.find(d => matchesId(d.id));
         if (found) channelEntity = found.entity;
       } else {
         const cleanUsername = channelStr.replace("@", "");
