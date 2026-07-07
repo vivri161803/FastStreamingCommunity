@@ -2,113 +2,193 @@ module.exports = async (req, res) => {
   res.writeHead(200, { "Content-Type": "text/html; charset=utf-8" });
   res.write(`
 <!DOCTYPE html>
-<html lang="en">
+<html lang="en" data-theme="light">
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
   <title>Redirect Dashboard</title>
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
   <style>
+    :root {
+      --bg-color: #ffffff;
+      --text-color: #000000;
+      --text-muted: #666666;
+      --border-color: #e5e5e5;
+      --input-bg: #fafafa;
+      --btn-bg: #000000;
+      --btn-text: #ffffff;
+      --item-bg: #ffffff;
+      --item-active-bg: #fafafa;
+      --dock-bg: rgba(255, 255, 255, 0.85);
+      --dock-border: rgba(0,0,0,0.08);
+      --delete-btn-bg: #f9f9f9;
+      --delete-btn-text: #999;
+      --delete-btn-hover-bg: #fee2e2;
+      --delete-btn-hover-text: #ef4444;
+      --badge-bg: #000000;
+      --badge-text: #ffffff;
+      --error-bg: #fee2e2;
+      --error-text: #ef4444;
+      --dock-text: #888888;
+    }
+
+    [data-theme="dark"] {
+      --bg-color: #0a0a0a;
+      --text-color: #ffffff;
+      --text-muted: #a1a1aa;
+      --border-color: #27272a;
+      --input-bg: #18181b;
+      --btn-bg: #ffffff;
+      --btn-text: #000000;
+      --item-bg: #18181b;
+      --item-active-bg: #09090b;
+      --dock-bg: rgba(24, 24, 27, 0.85);
+      --dock-border: rgba(255,255,255,0.1);
+      --delete-btn-bg: #27272a;
+      --delete-btn-text: #a1a1aa;
+      --delete-btn-hover-bg: #7f1d1d;
+      --delete-btn-hover-text: #fca5a5;
+      --badge-bg: #ffffff;
+      --badge-text: #000000;
+      --error-bg: #450a0a;
+      --error-text: #fca5a5;
+      --dock-text: #a1a1aa;
+    }
+
     body {
       font-family: 'Inter', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
-      background-color: #ffffff;
-      color: #000000;
+      background-color: var(--bg-color);
+      color: var(--text-color);
       margin: 0;
       padding: 0;
       display: flex;
       justify-content: center;
       min-height: 100vh;
       -webkit-font-smoothing: antialiased;
+      transition: background-color 0.3s, color 0.3s;
     }
+    
     .app-container {
       width: 100%;
       max-width: 480px;
       padding: 3rem 1.5rem 7rem 1.5rem;
       box-sizing: border-box;
+      position: relative;
     }
-    .header {
-      margin-bottom: 2.5rem;
+
+    .theme-toggle {
+      position: absolute;
+      top: 2.5rem;
+      right: 1.5rem;
+      background: var(--input-bg);
+      border: 1px solid var(--border-color);
+      color: var(--text-color);
+      border-radius: 999px;
+      width: 40px; height: 40px;
+      display: flex; justify-content: center; align-items: center;
+      cursor: pointer;
+      transition: all 0.2s;
     }
-    h1 {
-      font-size: 2rem;
-      font-weight: 700;
-      letter-spacing: -0.04em;
-      margin: 0 0 0.25rem 0;
-    }
-    p.subtitle {
-      color: #666666;
-      font-size: 0.95rem;
-      margin: 0;
-    }
+    .theme-toggle:active { transform: scale(0.9); }
+
+    .header { margin-bottom: 2.5rem; }
+    h1 { font-size: 2rem; font-weight: 700; letter-spacing: -0.04em; margin: 0 0 0.25rem 0; }
+    p.subtitle { color: var(--text-muted); font-size: 0.95rem; margin: 0; }
     
     .form-group { margin-bottom: 1.25rem; display: flex; flex-direction: column; }
     .form-group label {
-      font-size: 0.75rem; font-weight: 600; color: #888;
+      font-size: 0.75rem; font-weight: 600; color: var(--text-muted);
       margin-bottom: 0.5rem; margin-left: 0.5rem; text-transform: uppercase; letter-spacing: 0.05em;
     }
     input {
-      border: 1px solid #e5e5e5; background: #fafafa; border-radius: 9999px;
-      padding: 1rem 1.25rem; font-size: 1rem; color: #000; outline: none;
+      border: 1px solid var(--border-color); background: var(--input-bg); border-radius: 9999px;
+      padding: 1rem 1.25rem; font-size: 1rem; color: var(--text-color); outline: none;
       transition: all 0.2s ease; font-family: inherit;
     }
-    input::placeholder { color: #aaa; }
-    input:focus { border-color: #000; background: #fff; box-shadow: 0 0 0 4px rgba(0,0,0,0.04); }
+    input::placeholder { color: var(--text-muted); }
+    input:focus { border-color: var(--text-color); box-shadow: 0 0 0 4px rgba(128,128,128,0.1); }
     
     .btn {
-      background: #000; color: #fff; border: none; border-radius: 9999px;
+      background: var(--btn-bg); color: var(--btn-text); border: none; border-radius: 9999px;
       padding: 1rem 2rem; font-size: 1rem; font-weight: 600; cursor: pointer;
       transition: transform 0.2s, background 0.2s; width: 100%;
       display: flex; justify-content: center; align-items: center; text-decoration: none;
     }
     .btn:active { transform: scale(0.97); }
-    .btn:disabled { background: #ccc; cursor: not-allowed; transform: none; }
+    .btn:disabled { opacity: 0.5; cursor: not-allowed; transform: none; }
     
+    .btn-outline {
+      background: transparent; border: 1px solid var(--border-color); color: var(--text-color);
+    }
+    .btn-outline:active { background: var(--input-bg); }
+
     .session-list { display: flex; flex-direction: column; gap: 0.75rem; }
     .session-item {
-      border: 1px solid #eaeaea; border-radius: 24px; padding: 1rem 1.25rem;
+      border: 1px solid var(--border-color); border-radius: 24px; padding: 1rem 1.25rem;
       display: flex; justify-content: space-between; align-items: center;
-      cursor: pointer; transition: all 0.2s; background: #fff;
+      cursor: pointer; transition: all 0.2s; background: var(--item-bg);
     }
     .session-item:active { transform: scale(0.98); }
-    .session-item.active-session { border: 2px solid #000; padding: calc(1rem - 1px) calc(1.25rem - 1px); background: #fafafa; }
+    .session-item.active-session { border: 2px solid var(--text-color); padding: calc(1rem - 1px) calc(1.25rem - 1px); background: var(--item-active-bg); }
     
     .session-info { display: flex; align-items: center; gap: 0.5rem; font-weight: 600; font-size: 0.95rem;}
-    .badge { background: #000; color: #fff; font-size: 0.65rem; padding: 0.25rem 0.5rem; border-radius: 99px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.05em; margin-left: 0.5rem;}
+    .badge { background: var(--badge-bg); color: var(--badge-text); font-size: 0.65rem; padding: 0.25rem 0.5rem; border-radius: 99px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.05em; margin-left: 0.5rem;}
     
     .delete-btn {
-      background: #f9f9f9; color: #999; border: none; border-radius: 999px;
+      background: var(--delete-btn-bg); color: var(--delete-btn-text); border: none; border-radius: 999px;
       width: 32px; height: 32px; display: flex; justify-content: center; align-items: center;
       cursor: pointer; transition: all 0.2s;
     }
-    .delete-btn:hover { background: #fee2e2; color: #ef4444; }
+    .delete-btn:hover { background: var(--delete-btn-hover-bg); color: var(--delete-btn-hover-text); }
     
     .dock-wrapper {
       position: fixed; bottom: 2rem; left: 0; right: 0;
       display: flex; justify-content: center; pointer-events: none; z-index: 100;
     }
     .dock {
-      background: rgba(255, 255, 255, 0.85); backdrop-filter: blur(12px); -webkit-backdrop-filter: blur(12px);
-      border: 1px solid rgba(0,0,0,0.08); border-radius: 9999px; display: flex; padding: 0.4rem; gap: 0.25rem;
-      box-shadow: 0 12px 40px rgba(0,0,0,0.08); pointer-events: auto;
+      background: var(--dock-bg); backdrop-filter: blur(12px); -webkit-backdrop-filter: blur(12px);
+      border: 1px solid var(--dock-border); border-radius: 9999px; display: flex; padding: 0.4rem; gap: 0.25rem;
+      box-shadow: 0 12px 40px rgba(0,0,0,0.1); pointer-events: auto;
     }
     .dock-btn {
       background: transparent; border: none; padding: 0.75rem 1.5rem; border-radius: 9999px;
-      font-size: 0.9rem; font-weight: 600; color: #888; cursor: pointer; transition: all 0.2s;
+      font-size: 0.9rem; font-weight: 600; color: var(--dock-text); cursor: pointer; transition: all 0.2s;
       display: flex; align-items: center; gap: 0.5rem; font-family: inherit;
     }
-    .dock-btn.active { background: #000; color: #fff; }
+    .dock-btn.active { background: var(--btn-bg); color: var(--btn-text); }
     
     .view { display: none; animation: fadeUp 0.4s cubic-bezier(0.16, 1, 0.3, 1); }
     .view.active { display: block; }
     @keyframes fadeUp { from { opacity: 0; transform: translateY(15px); } to { opacity: 1; transform: translateY(0); } }
     
-    .error-msg { color: #ef4444; font-size: 0.85rem; font-weight: 500; margin-top: 1rem; text-align: center; display: none; background: #fee2e2; padding: 0.75rem; border-radius: 12px;}
+    .error-msg { color: var(--error-text); font-size: 0.85rem; font-weight: 500; margin-top: 1rem; text-align: center; display: none; background: var(--error-bg); padding: 0.75rem; border-radius: 12px;}
     
-    .empty-state { text-align: center; color: #999; padding: 2rem 0; font-size: 0.95rem;}
+    .empty-state { text-align: center; color: var(--text-muted); padding: 2rem 0; font-size: 0.95rem;}
+
+    /* Modal Styles */
+    .modal-overlay {
+      position: fixed; top: 0; left: 0; right: 0; bottom: 0;
+      background: rgba(0,0,0,0.6); backdrop-filter: blur(6px); -webkit-backdrop-filter: blur(6px);
+      display: flex; justify-content: center; align-items: center; z-index: 1000;
+      opacity: 0; pointer-events: none; transition: opacity 0.2s;
+    }
+    .modal-overlay.open { opacity: 1; pointer-events: auto; }
+    .modal-card {
+      background: var(--bg-color); border: 1px solid var(--border-color);
+      padding: 2rem; border-radius: 28px; width: 90%; max-width: 360px;
+      transform: scale(0.95); transition: transform 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+      box-shadow: 0 20px 40px rgba(0,0,0,0.2);
+    }
+    .modal-overlay.open .modal-card { transform: scale(1); }
+    .modal-card h3 { margin: 0 0 0.25rem 0; font-size: 1.25rem; }
   </style>
 </head>
 <body>
   <div class="app-container">
+    <button class="theme-toggle" onclick="toggleTheme()" id="themeToggleBtn">
+      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="moon-icon"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"></path></svg>
+    </button>
+
     <div class="header">
       <h1>Dashboard</h1>
       <p class="subtitle">Manage your redirect engine sessions.</p>
@@ -166,6 +246,21 @@ module.exports = async (req, res) => {
     </div>
   </div>
 
+  <!-- Password Modal -->
+  <div id="passwordModal" class="modal-overlay">
+    <div class="modal-card">
+      <h3>Authentication Required</h3>
+      <p class="subtitle" style="margin-bottom: 1.5rem;" id="modalDesc">This key is locked.</p>
+      <div class="form-group">
+        <input type="password" id="modalPasswordInput" placeholder="Enter password..." />
+      </div>
+      <div style="display:flex; gap: 0.5rem; margin-top: 1.5rem;">
+        <button class="btn btn-outline" style="flex:1;" onclick="closeModal()">Cancel</button>
+        <button class="btn" style="flex:1;" onclick="submitModal()">Confirm</button>
+      </div>
+    </div>
+  </div>
+
   <div class="dock-wrapper">
     <div class="dock">
       <button class="dock-btn active" id="tab-sessions" onclick="switchTab('sessions')">
@@ -184,6 +279,56 @@ module.exports = async (req, res) => {
     let tempSession = "";
     let phoneNumber = "";
     let sessionName = "";
+    
+    // Modal State
+    let modalResolve = null;
+
+    function toggleTheme() {
+      const html = document.documentElement;
+      const btn = document.getElementById("themeToggleBtn");
+      if (html.getAttribute("data-theme") === "light") {
+        html.setAttribute("data-theme", "dark");
+        setCookie("TG_THEME", "dark", 365);
+        btn.innerHTML = '<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="5"></circle><line x1="12" y1="1" x2="12" y2="3"></line><line x1="12" y1="21" x2="12" y2="23"></line><line x1="4.22" y1="4.22" x2="5.64" y2="5.64"></line><line x1="18.36" y1="18.36" x2="19.78" y2="19.78"></line><line x1="1" y1="12" x2="3" y2="12"></line><line x1="21" y1="12" x2="23" y2="12"></line><line x1="4.22" y1="19.78" x2="5.64" y2="18.36"></line><line x1="18.36" y1="5.64" x2="19.78" y2="4.22"></line></svg>';
+      } else {
+        html.setAttribute("data-theme", "light");
+        setCookie("TG_THEME", "light", 365);
+        btn.innerHTML = '<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"></path></svg>';
+      }
+    }
+
+    function initTheme() {
+      const saved = getCookie("TG_THEME");
+      if (saved === "dark") toggleTheme();
+    }
+
+    function requestPassword(description) {
+      return new Promise((resolve) => {
+        document.getElementById("modalDesc").innerText = description;
+        document.getElementById("modalPasswordInput").value = "";
+        document.getElementById("passwordModal").classList.add("open");
+        document.getElementById("modalPasswordInput").focus();
+        modalResolve = resolve;
+      });
+    }
+
+    function closeModal() {
+      document.getElementById("passwordModal").classList.remove("open");
+      if (modalResolve) modalResolve(null);
+      modalResolve = null;
+    }
+
+    function submitModal() {
+      const val = document.getElementById("modalPasswordInput").value;
+      document.getElementById("passwordModal").classList.remove("open");
+      if (modalResolve) modalResolve(val);
+      modalResolve = null;
+    }
+
+    // Allow Enter key in modal
+    document.getElementById("modalPasswordInput").addEventListener("keypress", function(e) {
+      if (e.key === "Enter") submitModal();
+    });
 
     function switchTab(tab) {
       document.querySelectorAll('.view').forEach(v => v.classList.remove('active'));
@@ -259,9 +404,9 @@ module.exports = async (req, res) => {
       }
     }
 
-    function setActiveSession(name, hasPassword) {
+    async function setActiveSession(name, hasPassword) {
       if (hasPassword) {
-        const pwd = prompt("This session is locked. Enter password:");
+        const pwd = await requestPassword("To activate '" + name + "', please enter its password:");
         if (pwd === null) return;
         setCookie("TG_SESSION_PASSWORD", pwd, 365);
       } else {
@@ -277,7 +422,7 @@ module.exports = async (req, res) => {
 
       let password = "";
       if (hasPassword) {
-        password = prompt("This key is locked. Enter password to delete:");
+        password = await requestPassword("To delete '" + name + "', please enter its password:");
         if (password === null) return;
       }
 
@@ -384,7 +529,10 @@ module.exports = async (req, res) => {
       }
     }
     
-    window.onload = loadSessions;
+    window.onload = () => {
+      initTheme();
+      loadSessions();
+    };
   </script>
 </body>
 </html>
