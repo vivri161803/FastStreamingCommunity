@@ -24,9 +24,29 @@ module.exports = async (req, res) => {
     }
 
     if (req.method === "DELETE") {
-      const { sessionName } = req.query;
-      if (!sessionName) return res.status(400).json({ error: "Missing sessionName" });
+      const sessionName = req.body ? req.body.sessionName : req.query.sessionName;
+      const password = req.body ? req.body.password : req.query.password;
       
+      if (!sessionName) {
+        return res.status(400).json({ error: "Missing session name" });
+      }
+
+      const sessionData = await redis.hget("TG_SESSIONS", sessionName);
+      if (sessionData) {
+        let sessionObj = null;
+        try {
+          sessionObj = typeof sessionData === "string" ? JSON.parse(sessionData) : sessionData;
+        } catch (e) {
+          sessionObj = null;
+        }
+
+        if (sessionObj && sessionObj.customPassword) {
+          if (password !== sessionObj.customPassword) {
+            return res.status(401).json({ error: "Invalid password to delete this key." });
+          }
+        }
+      }
+
       await redis.hdel("TG_SESSIONS", sessionName);
       return res.status(200).json({ success: true });
     }

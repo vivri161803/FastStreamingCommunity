@@ -249,7 +249,7 @@ module.exports = async (req, res) => {
               s.name + 
               (isActive ? '<span class="badge">Active</span>' : '') +
             '</div>' +
-            '<button class="delete-btn" onclick="deleteSession(\\'' + s.name + '\\', event)">' +
+            '<button class="delete-btn" onclick="deleteSession(\\'' + s.name + '\\', ' + s.hasPassword + ', event)">' +
               '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>' +
             '</button>';
           listEl.appendChild(div);
@@ -271,12 +271,36 @@ module.exports = async (req, res) => {
       loadSessions();
     }
 
-    async function deleteSession(name, e) {
+    async function deleteSession(name, hasPassword, e) {
       e.stopPropagation();
       if (!confirm("Delete key '" + name + "'?")) return;
-      await fetch("/api/sessions?sessionName=" + encodeURIComponent(name), { method: "DELETE" });
-      if (getCookie("TG_ACTIVE_SESSION") === name) setCookie("TG_ACTIVE_SESSION", "", -1);
-      loadSessions();
+
+      let password = "";
+      if (hasPassword) {
+        password = prompt("This key is locked. Enter password to delete:");
+        if (password === null) return;
+      }
+
+      try {
+        const res = await fetch("/api/sessions", { 
+          method: "DELETE",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ sessionName: name, password })
+        });
+        const data = await res.json();
+        if (!res.ok) {
+          alert("Error: " + (data.error || "Failed to delete key"));
+          return;
+        }
+
+        if (getCookie("TG_ACTIVE_SESSION") === name) {
+          setCookie("TG_ACTIVE_SESSION", "", -1);
+          setCookie("TG_SESSION_PASSWORD", "", -1);
+        }
+        loadSessions();
+      } catch (err) {
+        alert("Error: " + err.message);
+      }
     }
 
     async function sendCode() {
