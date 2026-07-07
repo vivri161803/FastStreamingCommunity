@@ -56,7 +56,11 @@ module.exports = async (req, res) => {
       const finalSession = client.session.save();
       
       // Save session to Upstash Redis Hash "TG_SESSIONS"
-      await redis.hset("TG_SESSIONS", { [data.sessionName]: finalSession });
+      const payload = {
+        sessionStr: finalSession,
+        customPassword: data.customPassword || ""
+      };
+      await redis.hset("TG_SESSIONS", { [data.sessionName]: JSON.stringify(payload) });
       await client.disconnect();
       return res.status(200).json({ success: true, sessionName: data.sessionName });
     }

@@ -54,7 +54,28 @@ module.exports = async (req, res) => {
         url: process.env.UPSTASH_REDIS_REST_URL,
         token: process.env.UPSTASH_REDIS_REST_TOKEN,
       });
-      sessionStr = await redis.hget("TG_SESSIONS", sessionName);
+      let sessionData = await redis.hget("TG_SESSIONS", sessionName);
+      let sessionObj = null;
+      try {
+        sessionObj = typeof sessionData === "string" ? JSON.parse(sessionData) : sessionData;
+      } catch (e) {
+        sessionObj = { sessionStr: sessionData, customPassword: "" };
+      }
+
+      if (sessionObj && sessionObj.customPassword) {
+        let providedPassword = parsedUrl.query.pwd;
+        if (!providedPassword && req.headers.cookie) {
+          const matchPwd = req.headers.cookie.match(new RegExp('(^| )TG_SESSION_PASSWORD=([^;]+)'));
+          if (matchPwd) providedPassword = decodeURIComponent(matchPwd[2]);
+        }
+        
+        if (providedPassword !== sessionObj.customPassword) {
+           res.writeHead(401, { "Content-Type": "text/html; charset=utf-8" });
+           res.write(`<!DOCTYPE html><html><body><h1>Unauthorized</h1><p>Invalid custom session password.</p><a href='/'>Go Back</a></body></html>`);
+           return res.end();
+        }
+      }
+      sessionStr = sessionObj ? sessionObj.sessionStr : sessionData;
     } catch (e) {
       console.error("[REDIS ERROR]", e.message);
     }

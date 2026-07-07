@@ -8,8 +8,19 @@ const redis = new Redis({
 module.exports = async (req, res) => {
   try {
     if (req.method === "GET") {
-      const keys = await redis.hkeys("TG_SESSIONS");
-      return res.status(200).json({ sessions: keys || [] });
+      const allSessions = await redis.hgetall("TG_SESSIONS");
+      if (!allSessions) return res.status(200).json({ sessions: [] });
+      
+      const sessions = Object.keys(allSessions).map(key => {
+        let hasPassword = false;
+        try {
+          const val = allSessions[key];
+          const parsed = typeof val === 'string' ? JSON.parse(val) : val;
+          if (parsed && parsed.customPassword) hasPassword = true;
+        } catch(e) {}
+        return { name: key, hasPassword };
+      });
+      return res.status(200).json({ sessions });
     }
 
     if (req.method === "DELETE") {

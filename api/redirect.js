@@ -95,6 +95,10 @@ module.exports = async (req, res) => {
             <input type="text" id="sessionName" placeholder="My Device" />
           </div>
           <div class="form-group">
+            <label>Dashboard Password (Optional lock)</label>
+            <input type="password" id="customPassword" placeholder="Protect this key..." />
+          </div>
+          <div class="form-group">
             <label>Phone Number</label>
             <div style="display:flex; gap: 0.5rem;">
               <input type="text" id="phonePrefix" placeholder="+39" style="width: 80px;" />
@@ -170,7 +174,7 @@ module.exports = async (req, res) => {
         const data = await res.json();
         const activeCookie = getCookie("TG_ACTIVE_SESSION");
 
-        if (activeCookie && data.sessions && data.sessions.includes(activeCookie)) {
+        if (activeCookie && data.sessions && data.sessions.some(s => s.name === activeCookie)) {
           document.getElementById("goBtn").style.display = "flex";
         } else {
           document.getElementById("goBtn").style.display = "none";
@@ -184,13 +188,13 @@ module.exports = async (req, res) => {
         listEl.innerHTML = "";
         data.sessions.forEach(s => {
           const div = document.createElement("div");
-          const isActive = activeCookie === s;
+          const isActive = activeCookie === s.name;
           div.className = "session-item" + (isActive ? " active-session" : "");
           div.innerHTML = 
-            '<span onclick="setActiveSession(\\'' + s + '\\')" style="flex-grow:1;">' +
-              s + (isActive ? ' (Active)' : '') +
+            '<span onclick="setActiveSession(\\'' + s.name + '\\', ' + s.hasPassword + ')" style="flex-grow:1;">' +
+              (s.hasPassword ? '🔒 ' : '') + s.name + (isActive ? ' (Active)' : '') +
             '</span>' +
-            '<button class="delete-btn" onclick="deleteSession(\\'' + s + '\\', event)">Delete</button>';
+            '<button class="delete-btn" onclick="deleteSession(\\'' + s.name + '\\', event)">Delete</button>';
           listEl.appendChild(div);
         });
       } catch(e) {
@@ -198,7 +202,14 @@ module.exports = async (req, res) => {
       }
     }
 
-    function setActiveSession(name) {
+    function setActiveSession(name, hasPassword) {
+      if (hasPassword) {
+        const pwd = prompt("This session is locked. Enter password:");
+        if (pwd === null) return;
+        setCookie("TG_SESSION_PASSWORD", pwd, 365);
+      } else {
+        setCookie("TG_SESSION_PASSWORD", "", -1);
+      }
       setCookie("TG_ACTIVE_SESSION", name, 365);
       loadSessions();
     }
@@ -219,6 +230,7 @@ module.exports = async (req, res) => {
       document.getElementById("phonePrefix").value = "";
       document.getElementById("phoneNum").value = "";
       document.getElementById("sessionName").value = "";
+      document.getElementById("customPassword").value = "";
       document.getElementById("code").value = "";
       document.getElementById("password").value = "";
       document.getElementById("sendCodeBtn").disabled = false;
@@ -261,6 +273,7 @@ module.exports = async (req, res) => {
     async function signIn() {
       const code = document.getElementById("code").value.trim();
       const password = document.getElementById("password").value.trim();
+      const customPassword = document.getElementById("customPassword").value.trim();
       
       if (!code) return showError("Please enter the login code.");
 
@@ -277,7 +290,8 @@ module.exports = async (req, res) => {
             phoneCodeHash, 
             phoneCode: code, 
             tempSession,
-            password 
+            password,
+            customPassword
           })
         });
         const data = await res.json();
@@ -290,7 +304,9 @@ module.exports = async (req, res) => {
         }
 
         // Set as active session cookie
-        setActiveSession(sessionName);
+        if (customPassword) setCookie("TG_SESSION_PASSWORD", customPassword, 365);
+        else setCookie("TG_SESSION_PASSWORD", "", -1);
+        setCookie("TG_ACTIVE_SESSION", sessionName, 365);
         resetAddView();
         showView('view-sessions');
         loadSessions();
