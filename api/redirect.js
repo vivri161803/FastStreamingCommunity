@@ -130,15 +130,15 @@ module.exports = async (req, res) => {
       <h1>Telegram Login</h1>
       <p>Securely connect your Telegram account to activate the redirect engine.</p>
       
-      ${(!envs.TG_API_ID || !envs.TG_API_HASH || !envs.TG_CHANNEL) ? \`
+      ${(!envs.TG_API_ID || !envs.TG_API_HASH || !envs.TG_CHANNEL) ? `
         <div class="missing-info">
           <strong>Missing Environment Variables:</strong><br><br>
-          \${!envs.TG_API_ID ? '• TG_API_ID<br>' : ''}
-          \${!envs.TG_API_HASH ? '• TG_API_HASH<br>' : ''}
-          \${!envs.TG_CHANNEL ? '• TG_CHANNEL<br>' : ''}
+          ${!envs.TG_API_ID ? '• TG_API_ID<br>' : ''}
+          ${!envs.TG_API_HASH ? '• TG_API_HASH<br>' : ''}
+          ${!envs.TG_CHANNEL ? '• TG_CHANNEL<br>' : ''}
           <br>Please configure these in Vercel before logging in.
         </div>
-      \` : \`
+      ` : `
         <div id="step1">
           <div class="form-group">
             <label>Phone Number (with +)</label>
@@ -154,7 +154,8 @@ module.exports = async (req, res) => {
           </div>
           <button class="btn" id="signInBtn" onclick="signIn()">Verify & Complete</button>
         </div>
-      \`}
+      `}
+
 
       <div id="errorMsg" class="error"></div>
       <div id="successMsg" class="success"></div>
@@ -237,7 +238,7 @@ module.exports = async (req, res) => {
   </script>
 </body>
 </html>
-    \`);
+    `);
     return res.end();
   }
 
@@ -261,7 +262,7 @@ module.exports = async (req, res) => {
       const cleanChannelStr = channelStr.replace("-100", "").replace("-", "");
       const matchesId = (dialogId) => {
         const dStr = dialogId.toString();
-        return dStr === channelStr || dStr === \`-\${channelStr}\` || dStr === cleanChannelStr || dStr === \`-\${cleanChannelStr}\` || dStr === \`-100\${cleanChannelStr}\`;
+        return dStr === channelStr || dStr === `-${channelStr}` || dStr === cleanChannelStr || dStr === `-${cleanChannelStr}` || dStr === `-100${cleanChannelStr}`;
       };
       if (isNumeric) {
         const found = dialogs.find(d => matchesId(d.id));
@@ -273,7 +274,7 @@ module.exports = async (req, res) => {
       }
     }
 
-    if (!channelEntity) throw new Error(\`Could not find channel entity for "\${channelStr}" in user dialogs.\`);
+    if (!channelEntity) throw new Error(`Could not find channel entity for "${channelStr}" in user dialogs.`);
 
     let foundUrl = null;
     for await (const message of client.iterMessages(channelEntity, { limit: 10 })) {
@@ -296,7 +297,7 @@ module.exports = async (req, res) => {
       return res.end();
     } else {
       res.writeHead(503, { "Content-Type": "text/html; charset=utf-8" });
-      res.write(\`<!DOCTYPE html><html><body><h1>No Link Found</h1></body></html>\`);
+      res.write(`<!DOCTYPE html><html><body><h1>No Link Found</h1></body></html>`);
       return res.end();
     }
 
@@ -307,7 +308,7 @@ module.exports = async (req, res) => {
       return res.end();
     } else {
       res.writeHead(500, { "Content-Type": "text/plain" });
-      return res.end(\`Failed: \${err.message}\`);
+      return res.end(`Failed: ${err.message}`);
     }
   }
 };
