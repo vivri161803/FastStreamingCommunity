@@ -1,20 +1,24 @@
+const { TelegramClient } = require("telegram");
+const { StringSession } = require("telegram/sessions");
 const url = require("url");
 
-// Initialize Upstash Redis client safely
-let redis = null;
-let redisInitError = null;
+const apiId = parseInt(process.env.TG_API_ID, 10);
+const apiHash = process.env.TG_API_HASH;
+const sessionStr = process.env.TG_SESSION;
+const channelStr = process.env.TG_CHANNEL;
+const fallbackUrl = process.env.DEFAULT_FALLBACK_URL;
 
-if (process.env.UPSTASH_REDIS_REST_URL && process.env.UPSTASH_REDIS_REST_TOKEN) {
-  try {
-    const { Redis } = require("@upstash/redis");
-    redis = Redis.fromEnv();
-  } catch (err) {
-    redisInitError = err.message;
-  }
+// Regex to extract the first URL (excluding trailing parenthesis)
+const urlRegex = /https?:\/\/[^\s)]+/i;
+
+function extractUrl(text) {
+  if (!text) return null;
+  const match = text.match(urlRegex);
+  return match ? match[0] : null;
 }
 
 module.exports = async (req, res) => {
-  // Only accept GET requests (or HEAD)
+  // Only accept GET and HEAD requests
   if (req.method !== "GET" && req.method !== "HEAD") {
     res.setHeader("Allow", ["GET", "HEAD"]);
     return res.status(405).json({ error: "Method Not Allowed" });
@@ -33,17 +37,16 @@ module.exports = async (req, res) => {
   }
 
   const envs = {
-    TELEGRAM_BOT_TOKEN: !!process.env.TELEGRAM_BOT_TOKEN,
-    TELEGRAM_CHANNEL_ID: !!process.env.TELEGRAM_CHANNEL_ID,
-    TELEGRAM_WEBHOOK_SECRET: !!process.env.TELEGRAM_WEBHOOK_SECRET,
-    UPSTASH_REDIS_REST_URL: !!process.env.UPSTASH_REDIS_REST_URL,
-    UPSTASH_REDIS_REST_TOKEN: !!process.env.UPSTASH_REDIS_REST_TOKEN,
+    TG_API_ID: !isNaN(apiId),
+    TG_API_HASH: !!apiHash,
+    TG_SESSION: !!sessionStr,
+    TG_CHANNEL: !!channelStr,
   };
 
-  const isConfigured = envs.TELEGRAM_BOT_TOKEN && envs.TELEGRAM_CHANNEL_ID && envs.UPSTASH_REDIS_REST_URL && envs.UPSTASH_REDIS_REST_TOKEN;
+  const isConfigured = envs.TG_API_ID && envs.TG_API_HASH && envs.TG_SESSION && envs.TG_CHANNEL;
 
   // Serve a beautiful, premium setup landing page if not fully configured
-  if (!isConfigured || redisInitError) {
+  if (!isConfigured) {
     res.writeHead(200, { "Content-Type": "text/html; charset=utf-8" });
     res.write(`
 <!DOCTYPE html>
@@ -316,7 +319,7 @@ module.exports = async (req, res) => {
         </svg>
       </div>
 
-      <h1>Telegram Link Redirector</h1>
+      <h1>Telegram On-Demand Redirector</h1>
       
       <div class="status-badge">
         <div class="status-dot"></div>
@@ -324,7 +327,7 @@ module.exports = async (req, res) => {
       </div>
 
       <p class="desc">
-        Your Vercel deployment is successfully spinning! To activate the redirect engine, please configure your Environment Variables in the Vercel Dashboard.
+        Your Vercel deployment is successfully spinning! To activate the on-demand redirect engine, please configure your Telegram User credentials in the Vercel Dashboard.
       </p>
 
       <div class="domain-box">
@@ -335,27 +338,27 @@ module.exports = async (req, res) => {
       <div class="checklist-title">Configuration Checklist</div>
       <div class="checklist">
         <div class="check-item">
-          <span class="item-label">Upstash Redis Connection</span>
-          <span class="item-status ${envs.UPSTASH_REDIS_REST_URL && envs.UPSTASH_REDIS_REST_TOKEN ? "status-ok" : "status-missing"}">
-            ${envs.UPSTASH_REDIS_REST_URL && envs.UPSTASH_REDIS_REST_TOKEN ? "✓ Configured" : "✗ Missing"}
+          <span class="item-label">TG_API_ID</span>
+          <span class="item-status ${envs.TG_API_ID ? "status-ok" : "status-missing"}">
+            ${envs.TG_API_ID ? "✓ Configured" : "✗ Missing"}
           </span>
         </div>
         <div class="check-item">
-          <span class="item-label">Telegram Bot Token</span>
-          <span class="item-status ${envs.TELEGRAM_BOT_TOKEN ? "status-ok" : "status-missing"}">
-            ${envs.TELEGRAM_BOT_TOKEN ? "✓ Configured" : "✗ Missing"}
+          <span class="item-label">TG_API_HASH</span>
+          <span class="item-status ${envs.TG_API_HASH ? "status-ok" : "status-missing"}">
+            ${envs.TG_API_HASH ? "✓ Configured" : "✗ Missing"}
           </span>
         </div>
         <div class="check-item">
-          <span class="item-label">Telegram Target Channel ID</span>
-          <span class="item-status ${envs.TELEGRAM_CHANNEL_ID ? "status-ok" : "status-missing"}">
-            ${envs.TELEGRAM_CHANNEL_ID ? "✓ Configured" : "✗ Missing"}
+          <span class="item-label">TG_SESSION (Login Session)</span>
+          <span class="item-status ${envs.TG_SESSION ? "status-ok" : "status-missing"}">
+            ${envs.TG_SESSION ? "✓ Configured" : "✗ Missing"}
           </span>
         </div>
         <div class="check-item">
-          <span class="item-label">Webhook Secret Protection</span>
-          <span class="item-status ${envs.TELEGRAM_WEBHOOK_SECRET ? "status-ok" : "status-missing"}">
-            ${envs.TELEGRAM_WEBHOOK_SECRET ? "✓ Configured" : "✗ Missing (Recommended)"}
+          <span class="item-label">TG_CHANNEL (Target ID or Title)</span>
+          <span class="item-status ${envs.TG_CHANNEL ? "status-ok" : "status-missing"}">
+            ${envs.TG_CHANNEL ? "✓ Configured" : "✗ Missing"}
           </span>
         </div>
       </div>
@@ -372,20 +375,73 @@ module.exports = async (req, res) => {
     return res.end();
   }
 
-  // Active production flow
-  try {
-    const targetUrl = await redis.get("latest_url");
+  // Active production flow: Connect to Telegram on-demand
+  console.log(`[ON-DEMAND] Fetch request started. Connecting to Telegram account...`);
+  const client = new TelegramClient(new StringSession(sessionStr), apiId, apiHash, {
+    connectionRetries: 3,
+  });
 
-    if (targetUrl) {
-      console.log(`[REDIRECT] Redirecting to: ${targetUrl}`);
-      res.writeHead(302, { Location: targetUrl });
+  try {
+    await client.connect();
+    console.log("[ON-DEMAND] Connected to Telegram successfully.");
+
+    // Resolve channel target
+    let target = channelStr;
+    const isNumeric = /^-?\d+$/.test(channelStr);
+    if (isNumeric) {
+      target = BigInt(channelStr);
+    }
+
+    let channelEntity = null;
+    try {
+      channelEntity = await client.getEntity(target);
+    } catch (e) {
+      console.warn(`[ON-DEMAND] Direct resolve failed, fetching dialogs to populate cache...`);
+      const dialogs = await client.getDialogs({});
+      
+      if (isNumeric) {
+        const found = dialogs.find(d => d.id.toString() === channelStr || d.id === target);
+        if (found) channelEntity = found.entity;
+      } else {
+        const cleanUsername = channelStr.replace("@", "");
+        const found = dialogs.find(d => 
+          d.title === channelStr || 
+          (d.entity && d.entity.username === cleanUsername)
+        );
+        if (found) channelEntity = found.entity;
+      }
+    }
+
+    if (!channelEntity) {
+      throw new Error(`Could not find channel entity for "${channelStr}" in user dialogs.`);
+    }
+
+    let foundUrl = null;
+
+    // Scan the last 10 messages for a URL
+    for await (const message of client.iterMessages(channelEntity, { limit: 10 })) {
+      if (message.text) {
+        const urlMatch = extractUrl(message.text);
+        if (urlMatch) {
+          foundUrl = urlMatch;
+          break;
+        }
+      }
+    }
+
+    // Always disconnect the client when done to avoid socket leaks
+    await client.disconnect();
+    console.log("[ON-DEMAND] Disconnected client.");
+
+    if (foundUrl) {
+      console.log(`[ON-DEMAND] Redirecting to extracted URL: ${foundUrl}`);
+      res.writeHead(302, { Location: foundUrl });
       return res.end();
     } else if (fallbackUrl) {
-      console.log(`[REDIRECT] No URL stored. Redirecting to default fallback: ${fallbackUrl}`);
+      console.log(`[ON-DEMAND] No URL found. Redirecting to default fallback: ${fallbackUrl}`);
       res.writeHead(302, { Location: fallbackUrl });
       return res.end();
     } else {
-      console.log("[REDIRECT] No URL or fallback available. Serving 503.");
       res.writeHead(503, { "Content-Type": "text/html; charset=utf-8" });
       res.write(`
         <!DOCTYPE html>
@@ -401,17 +457,28 @@ module.exports = async (req, res) => {
         </head>
         <body>
           <div class="container">
-            <h1>No Redirect Link Available</h1>
-            <p>The redirect database is empty and no default fallback URL has been configured.</p>
+            <h1>No Link Found</h1>
+            <p>No valid URL was found in the recent messages of target channel.</p>
           </div>
         </body>
         </html>
       `);
       return res.end();
     }
-  } catch (error) {
-    console.error("[REDIRECT] Error retrieving URL from Upstash Redis:", error.message);
-    res.writeHead(500, { "Content-Type": "text/plain" });
-    return res.end("Internal Server Error");
+
+  } catch (err) {
+    console.error("[ON-DEMAND ERROR] Failed to fetch redirect URL:", err.message);
+    try {
+      await client.disconnect();
+    } catch (disconnectErr) {}
+
+    if (fallbackUrl) {
+      console.log(`[ON-DEMAND ERROR] Falling back to default: ${fallbackUrl}`);
+      res.writeHead(302, { Location: fallbackUrl });
+      return res.end();
+    } else {
+      res.writeHead(500, { "Content-Type": "text/plain" });
+      return res.end(`Failed to retrieve redirect URL from Telegram: ${err.message}`);
+    }
   }
 };

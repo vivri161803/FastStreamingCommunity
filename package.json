@@ -1,13 +1,14 @@
 {
-  "name": "telegram-channel-redirect-vercel",
+  "name": "telegram-channel-redirect-ondemand",
   "version": "1.0.0",
-  "description": "Redirect HTTP requests to the latest URL from a Telegram channel using a Bot and Vercel",
+  "description": "On-demand direct Telegram channel redirector hosted on Vercel",
   "main": "api/redirect.js",
   "scripts": {
-    "set-webhook": "node scripts/set-webhook.js"
+    "generate-session": "node scripts/generate-session.js"
   },
   "dependencies": {
-    "@upstash/redis": "^1.31.5",
-    "dotenv": "^16.4.5"
+    "telegram": "^2.22.2",
+    "dotenv": "^16.4.5",
+    "input": "^1.0.1"
   }
 }
